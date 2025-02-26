@@ -1,43 +1,57 @@
-const pool = require("../config/database");
+// controllers/questionController.js
+const db = require("../config/database");
 
-const createQuestion = async (req, res) => {
-    const { question_text, difficulty } = req.body;
+exports.addQuestion = async (req, res) => {
+  const { question_text, difficulty, company_tag } = req.body;
 
-    if (!question_text || !difficulty) {
-        return res.status(400).json({ error: "Question text and difficulty are required" });
-    }
+  if (!question_text || !difficulty || !company_tag) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
 
-    try {
-        const newQuestion = await pool.query(
-            "INSERT INTO questions (question_text, difficulty) VALUES ($1, $2) RETURNING *",
-            [question_text, difficulty]
-        );
-        res.status(201).json(newQuestion.rows[0]);
-    } catch (err) {
-        console.error("Error creating question:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
+  try {
+    await db.none(
+      "INSERT INTO questions (question_text, difficulty, company_tag) VALUES ($1, $2, $3)",
+      [question_text, difficulty, company_tag]
+    );
+    res.status(201).json({ message: "Question added successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Error adding question" });
+  }
 };
 
-const getAllQuestions = async (req, res) => {
-    try {
-        const questions = await pool.query("SELECT * FROM questions");
-        res.status(200).json(questions.rows);
-    } catch (err) {
-        console.error("Error fetching questions:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
+exports.getAllQuestions = async (req, res) => {
+  try {
+    const questions = await db.manyOrNone("SELECT * FROM questions");
+    res.status(200).json(questions);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching questions" });
+  }
 };
 
-const getRandomQuestion = async (req, res) => {
-    try {
-        const question = await pool.query("SELECT * FROM questions ORDER BY RANDOM() LIMIT 1");
-        res.status(200).json(question.rows[0]);
-    } catch (err) {
-        console.error("Error fetching random question:", err);
-        res.status(500).json({ error: "Internal server error" });
-    }
+exports.getQuestionsByDifficulty = async (req, res) => {
+  const { level } = req.params;
+  try {
+    const questions = await db.manyOrNone(
+      "SELECT * FROM questions WHERE difficulty = $1",
+      [level]
+    );
+    res.status(200).json(questions);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching questions" });
+  }
 };
 
-module.exports = { createQuestion, getAllQuestions, getRandomQuestion };
+exports.getQuestionsByCompany = async (req, res) => {
+  const { tag } = req.params;
+  try {
+    const questions = await db.manyOrNone(
+      "SELECT * FROM questions WHERE company_tag = $1",
+      [tag]
+    );
+    res.status(200).json(questions);
+  } catch (error) {
+    res.status(500).json({ error: "Error fetching questions" });
+  }
+};
 
+module.exports = exports;

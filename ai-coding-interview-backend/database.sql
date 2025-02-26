@@ -16,3 +16,19 @@ CREATE TABLE questions (
   company_tag VARCHAR(50),
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE interviews (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id),
+  question_id INT REFERENCES questions(id),
+  code_submission TEXT,
+  ai_feedback JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE progress (
+  user_id INT PRIMARY KEY REFERENCES users(id),
+  total_sessions INT DEFAULT 0,
+  avg_score NUMERIC(3,1),
+  weak_topics TEXT[]
+);
