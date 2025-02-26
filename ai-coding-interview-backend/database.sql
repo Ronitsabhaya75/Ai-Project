@@ -1,3 +1,7 @@
+CREATE DATABASE ai_coding_interview;
+
+\c ai_coding_interview
+
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
