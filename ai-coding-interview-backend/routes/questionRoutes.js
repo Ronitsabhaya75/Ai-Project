@@ -7,6 +7,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 // Add a new question (protected by auth)
 router.post("/add", authMiddleware, questionController.addQuestion);
 
+
 // Other routes (GET)
 router.get("/all", questionController.getAllQuestions);
 router.get("/difficulty/:level", questionController.getQuestionsByDifficulty);

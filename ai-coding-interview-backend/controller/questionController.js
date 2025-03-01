@@ -1,5 +1,4 @@
-// controllers/questionController.js
-const db = require("../config/database");
+const pool = require("../config/database");
 
 exports.addQuestion = async (req, res) => {
   const { question_text, difficulty, company_tag } = req.body;
@@ -9,49 +8,50 @@ exports.addQuestion = async (req, res) => {
   }
 
   try {
-    await db.none(
+    await pool.query(
       "INSERT INTO questions (question_text, difficulty, company_tag) VALUES ($1, $2, $3)",
       [question_text, difficulty, company_tag]
     );
     res.status(201).json({ message: "Question added successfully" });
   } catch (error) {
-    res.status(500).json({ error: "Error adding question" });
+    res.status(500).json({ error: "Error adding question", details: error.message });
   }
 };
 
 exports.getAllQuestions = async (req, res) => {
   try {
-    const questions = await db.manyOrNone("SELECT * FROM questions");
-    res.status(200).json(questions);
+    const { rows } = await pool.query("SELECT * FROM questions");
+    res.status(200).json(rows);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching questions" });
+    res.status(500).json({ error: "Error fetching questions", details: error.message });
   }
 };
 
 exports.getQuestionsByDifficulty = async (req, res) => {
   const { level } = req.params;
   try {
-    const questions = await db.manyOrNone(
+    const { rows } = await pool.query(
       "SELECT * FROM questions WHERE difficulty = $1",
       [level]
     );
-    res.status(200).json(questions);
+    res.status(200).json(rows);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching questions" });
+    res.status(500).json({ error: "Error fetching questions", details: error.message });
   }
 };
 
 exports.getQuestionsByCompany = async (req, res) => {
   const { tag } = req.params;
   try {
-    const questions = await db.manyOrNone(
+    const { rows } = await pool.query(
       "SELECT * FROM questions WHERE company_tag = $1",
       [tag]
     );
-    res.status(200).json(questions);
+    res.status(200).json(rows);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching questions" });
+    res.status(500).json({ error: "Error fetching questions", details: error.message });
   }
 };
+
 
 module.exports = exports;

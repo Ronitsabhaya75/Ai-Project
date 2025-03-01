@@ -1,17 +1,26 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const axios = require("axios");
 
 exports.analyzeCode = async (code, question) => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-    const prompt = `
-      Analyze this code for the problem: ${question}
-      Code: ${code}
-      Return JSON with: { correctness: 0-10, timeComplexity: string, feedback: string }
-    `;
-    const result = await model.generateContent(prompt);
-    return JSON.parse(result.response.text());
+    console.log("🔹 Sending code to AI:", { code, question });
+
+    const API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateText";
+    const API_KEY = process.env.GEMINI_API_KEY; 
+
+    if (!API_KEY) {
+      throw new Error("❌ Missing Gemini API Key");
+    }
+
+    const response = await axios.post(`${API_URL}?key=${API_KEY}`, {
+      contents: [
+        { parts: [{ text: `Analyze this code: ${code}\nQuestion: ${question}` }] }
+      ]
+    });
+
+    console.log("✅ AI Response:", JSON.stringify(response.data, null, 2));
+    return response.data;
   } catch (error) {
-    throw new Error("AI analysis failed");
+    console.error("❌ AI Analysis Failed:", error.response ? error.response.data : error.message);
+    return null;
   }
 };
