@@ -12,8 +12,8 @@ CREATE TABLE users (
 CREATE TABLE questions (
   id SERIAL PRIMARY KEY,
   question_text TEXT NOT NULL,
-  difficulty VARCHAR(50),
-  company_tag VARCHAR(50),
+  difficulty VARCHAR(50) NOT NULL,
+  company_tag VARCHAR(50) NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
