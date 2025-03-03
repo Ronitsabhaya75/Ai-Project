@@ -6,7 +6,7 @@ const initializeModules = async () => {
       INSERT INTO modules (name, order_position) VALUES
       ('Arrays & Hashing', 1),
       ('Two Pointers', 2),
-      ('Stack', 3),
+      ('Stacks', 3),
       ('Binary Search', 4),
       ('Sliding Window', 5),
       ('Linked List', 6),

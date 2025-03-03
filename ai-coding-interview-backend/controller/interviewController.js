@@ -1,87 +1,100 @@
 const db = require("../config/database");
 const { analyzeCode } = require("../service/geminiService");
+const { executeCode } = require("../service/codeExecutor");
+const sanitizeHtml = require("sanitize-html");
 
 exports.startInterview = async (req, res) => {
   try {
-    console.log("Start interview request received:", req.body);
-    const { difficulty } = req.body;
+    const { difficulty, topic } = req.body;
 
-    if (!difficulty) {
-      return res.status(400).json({ error: "Difficulty level is required" });
+    if (!difficulty || !topic) {
+      return res.status(400).json({ error: "Difficulty and topic are required" });
     }
 
-    // Correct usage of db.oneOrNone
+    // Fetch next available question (150 predefined + user-submitted)
     const question = await db.oneOrNone(
-      "SELECT * FROM questions WHERE difficulty = $1 ORDER BY RANDOM() LIMIT 1",
-      [difficulty]
+      `SELECT q.*, array_agg(tc.input) as test_cases 
+       FROM questions q
+       LEFT JOIN test_cases tc ON q.id = tc.question_id
+       WHERE q.difficulty = $1 
+       AND q.topic = $2
+       AND q.id NOT IN (
+           SELECT question_id FROM interviews WHERE user_id = $3
+       )
+       GROUP BY q.id
+       ORDER BY q.id
+       LIMIT 1`,
+      [difficulty, topic, req.user.id]
     );
 
     if (!question) {
-      return res.status(404).json({ error: "No questions found for this difficulty" });
+      return res.status(404).json({ error: "No more questions available for this topic." });
     }
 
-    console.log("Selected question:", question);
-
-    if (!req.user || !req.user.userId) {
-      return res.status(401).json({ error: "Unauthorized. Please log in." });
-    }
-
+    // Insert into interviews table
     const interview = await db.one(
       "INSERT INTO interviews (user_id, question_id) VALUES ($1, $2) RETURNING id",
-      [req.user.userId, question.id]
+      [req.user.id, question.id]
     );
-
-    console.log("Interview started successfully:", interview.id);
 
     res.json({
       interviewId: interview.id,
       question: question.question_text,
+      testCases: question.test_cases,
     });
   } catch (error) {
-    console.error("Error starting interview:", error);
-    res.status(500).json({ error: "Failed to start interview", details: error.message });
+    console.error("Interview Error:", error);
+    res.status(500).json({ error: "Interview failed", details: error.message });
   }
 };
 
-
 exports.submitCode = async (req, res) => {
   try {
-    console.log("🔹 Received Code Submission Data:", req.body);
-
-    const { code, interviewId } = req.body;
-
+    let { code, interviewId } = req.body;
     if (!code || !interviewId) {
-      return res.status(400).json({ error: "Missing code or interviewId" });
+      return res.status(400).json({ error: "Missing data" });
     }
 
-    const interview = await db.oneOrNone("SELECT * FROM interviews WHERE id = $1", [interviewId]);
+    // Sanitize code input
+    code = sanitizeHtml(code, { allowedTags: [], allowedAttributes: {} });
+
+    // Fetch interview details
+    const interview = await db.oneOrNone(
+      `SELECT i.*, q.*, array_agg(tc.input) as test_cases 
+       FROM interviews i
+       JOIN questions q ON i.question_id = q.id
+       LEFT JOIN test_cases tc ON q.id = tc.question_id
+       WHERE i.id = $1
+       GROUP BY i.id, q.id`,
+      [interviewId]
+    );
+
     if (!interview) {
       return res.status(404).json({ error: "Interview not found" });
     }
 
-    const question = await db.one("SELECT * FROM questions WHERE id = $1", [interview.question_id]);
+    // Execute test cases
+    const testResults = await executeCode(code, interview.test_cases);
 
-    console.log("🔹 Sending code to AI for analysis...");
-    
-    const aiFeedback = await analyzeCode(code, question.question_text);
-    
-    if (!aiFeedback) {
-      throw new Error("AI analysis returned null or undefined");
-    }
+    // Get AI feedback
+    const aiFeedback = await analyzeCode(code, interview.question_text);
 
-    console.log("✅ AI Analysis Result:", aiFeedback);
-
+    // Update the interview with submission results
     await db.none(
-      "UPDATE interviews SET code_submission = $1, ai_feedback = $2 WHERE id = $3",
-      [code, aiFeedback, interviewId]
+      `UPDATE interviews 
+       SET code_submission = $1, 
+           ai_feedback = $2,
+           test_results = $3
+       WHERE id = $4`,
+      [code, aiFeedback, testResults, interviewId]
     );
 
-    res.json(aiFeedback);
+    res.json({ aiFeedback, testResults });
   } catch (error) {
-    console.error("❌ Code Submission Error:", error.message);
-    res.status(500).json({ error: "Code submission failed", details: error.message });
+    console.error("Submission Error:", error);
+    res.status(500).json({
+      error: "Submission failed",
+      details: error.message,
+    });
   }
 };
-
-
-module.exports = exports;

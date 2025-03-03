@@ -1,33 +1,25 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
 const { initializeData } = require("./scripts/insertQuestions");
 
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 5000;
+
+// Middleware
 app.use(express.json());
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error("❌ Error:", err.message);
-  res.status(500).json({ error: "Internal server error" });
-});
-
-// Initialize data (modules and questions) on server start
-initializeData()
-  .then(() => {
-    const PORT = process.env.PORT || 8000;
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ Failed to initialize data:", err);
-    process.exit(1);
-  });
-
 // Routes
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/modules", require("./routes/moduleRoutes"));
-app.use("/api/questions", require("./routes/questionRoutes"));
-app.use("/api/interviews", require("./routes/interviewRoutes"));
+app.use("/questions", require("./routes/questionRoutes"));
+app.use("/auth", require("./routes/authRoutes"));
+app.use("/interview", require("./routes/interviewRoutes"));
+app.use("/modules", require("./routes/moduleRoutes"));
+
+// Ensure data is inserted on server start
+initializeData()
+  .then(() => console.log("✅ Data initialization completed successfully"))
+  .catch((err) => console.error("❌ Error initializing data:", err));
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

@@ -1,16 +1,11 @@
-// routes/questionRoutes.js
 const express = require("express");
+const { addQuestion, getAllQuestions, getQuestionsByDifficulty, getQuestionsByCompany } = require("../controller/questionController");
+
 const router = express.Router();
-const questionController = require("../controller/questionController");
-const authMiddleware = require("../middleware/authMiddleware");
 
-// Add a new question (protected by auth)
-router.post("/add", authMiddleware, questionController.addQuestion);
-
-
-// Other routes (GET)
-router.get("/all", questionController.getAllQuestions);
-router.get("/difficulty/:level", questionController.getQuestionsByDifficulty);
-router.get("/company/:tag", questionController.getQuestionsByCompany);
+router.post("/add", addQuestion); // Add a new question
+router.get("/", getAllQuestions); // Get all questions
+router.get("/difficulty/:level", getQuestionsByDifficulty); // Get questions by difficulty
+router.get("/company/:tag", getQuestionsByCompany); // Get questions by company
 
 module.exports = router;

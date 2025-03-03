@@ -21,9 +21,11 @@ exports.addQuestion = async (req, res) => {
 exports.getAllQuestions = async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM questions");
+    console.log("Fetched Questions:", rows);  // Debug
     res.status(200).json(rows);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching questions", details: error.message });
+    console.error("Error fetching questions:", error.message);
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -52,6 +54,3 @@ exports.getQuestionsByCompany = async (req, res) => {
     res.status(500).json({ error: "Error fetching questions", details: error.message });
   }
 };
-
-
-module.exports = exports;

@@ -1,13 +1,32 @@
-const pgp = require("pg-promise")();
+const pgp = require("pg-promise")({
+  capSQL: true, // Capitalizes SQL for better readability
+});
 require("dotenv").config();
 
-const db = pgp({
-  host: process.env.DB_HOST || "localhost",
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || "your_database",
-  user: process.env.DB_USER || "your_user",
-  password: process.env.DB_PASSWORD || "your_password",
-  max: 30, // Connection pool
-});
+// Secure connection settings
+const config = {
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  max: 30, // Connection pool size
+  allowExitOnIdle: true, // Ensures the pool shuts down properly
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false, // SSL for production
+};
+
+// Create a database connection
+const db = pgp(config);
+
+// Handle unexpected errors
+db.connect()
+  .then((obj) => {
+    console.log("✅ Connected to the PostgreSQL database!");
+    obj.done(); // Release the connection
+  })
+  .catch((error) => {
+    console.error("❌ Database connection error:", error.message || error);
+    process.exit(1); // Exit process if DB connection fails
+  });
 
 module.exports = db;

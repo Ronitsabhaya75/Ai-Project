@@ -42,6 +42,7 @@ CREATE TABLE interviews (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Test Cases Table
 CREATE TABLE test_cases (
   id SERIAL PRIMARY KEY,
   question_id INT REFERENCES questions(id) ON DELETE CASCADE,
@@ -49,8 +50,12 @@ CREATE TABLE test_cases (
   output TEXT NOT NULL
 );
 
-
 -- Indexes for Optimization
 CREATE INDEX idx_user_progress ON user_progress(user_id, module_id);
 CREATE INDEX idx_modules_order ON modules(order_position);
 CREATE INDEX idx_questions_module ON questions(module_id);
+
+---modifying the table:
+ ALTER TABLE questions ADD CONSTRAINT unique_question_text UNIQUE (question_text);
+ALTER TABLE questions ADD CONSTRAINT unique_question UNIQUE (question_text);
+ALTER TABLE test_cases ADD CONSTRAINT unique_test_case UNIQUE (question_id, input);
