@@ -1,4 +1,4 @@
-class APIError extends Error {
+export class APIError extends Error {
     constructor(message, status = 500, details = null) {
       super(message);
       this.name = this.constructor.name;
@@ -8,7 +8,7 @@ class APIError extends Error {
     }
   }
   
-  const errorHandler = (err, req, res, next) => {
+  export const errorHandler = (err, _, res) => {
     console.error(`[${new Date().toISOString()}] Error: ${err.stack}`);
   
     const response = {
@@ -22,5 +22,3 @@ class APIError extends Error {
   
     res.status(err.status || 500).json(response);
   };
-  
-  export { APIError, errorHandler };

@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
-import db from "./config/database.js";
 import { WebSocketServer } from "ws";
 import authRoutes from "./routes/authRoutes.js";
 import questionRoutes from "./routes/questionRoutes.js";
@@ -30,7 +29,7 @@ wss.on("connection", (ws) => {
 });
 
 // Error handling
-app.use((err, req, res, next) => {
+app.use((err, _, res) => {
   console.error(err.stack);
   res.status(500).json({ error: "Internal server error" });
 });
