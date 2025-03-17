@@ -80,12 +80,39 @@ Respond to candidate messages as if you're speaking. Keep your responses concise
 Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
 };
 
+// Mock responses for when the API is not available
+const MOCK_RESPONSES = {
+  coding: {
+    initial: "Today, I'd like you to implement a function that finds two numbers in an array that add up to a specific target. Could you start by explaining your approach to this problem?",
+    feedback: "I've reviewed your solution. Your approach using a hash map to track values as you iterate through the array is efficient, giving us O(n) time complexity. Good job identifying that this avoids the nested loop O(n²) solution. You've also handled edge cases well. I'd score your solution at 85/100. To improve, consider discussing the space complexity trade-offs and perhaps mentioning alternative approaches even if they're less optimal."
+  },
+  oop: {
+    initial: "Let's start with a fundamental question. Could you explain the four main principles of Object-Oriented Programming and provide an example of each?",
+    feedback: "You've demonstrated a solid understanding of OOP principles. Your explanation of encapsulation, inheritance, polymorphism, and abstraction was clear. I particularly liked your real-world examples. You could improve by discussing some design patterns and their practical applications. Overall, I'd rate your performance at 82/100. You showed good conceptual knowledge but could strengthen the discussion of trade-offs between different OOP approaches."
+  },
+  behavioral: {
+    initial: "Tell me about a time when you faced a significant challenge in a project and how you overcame it.",
+    feedback: "You provided a well-structured response using the STAR method. Your example about the challenging project deadline was relevant and demonstrated your problem-solving skills. I appreciate how you highlighted both your individual contribution and team collaboration. For improvement, try to quantify your impact more precisely. I'd rate your performance at 88/100. Your communication was clear, though sometimes your examples could be more concise and focused."
+  },
+  systemDesign: {
+    initial: "Today I'd like you to design a URL shortening service similar to TinyURL or bit.ly. Can you walk me through your approach to designing this system?",
+    feedback: "Your system design solution demonstrated good knowledge of the key components needed. You correctly identified the need for a URL mapping database, a hashing function, and an API layer. Your discussion of scalability using a distributed cache was particularly strong. Areas for improvement include more detailed discussion of database partitioning strategies and analytics capabilities. Overall, I'd rate your performance at 78/100. You covered the core aspects well but could go deeper on reliability and data consistency concerns."
+  }
+};
+
 class DeepseekService {
+  private useApiIfAvailable = true;
+  
   async generateChatResponse(
     messages: ChatMessage[],
     temperature: number = 0.7,
     max_tokens: number = 800
   ): Promise<string> {
+    // If API usage is disabled, return mock responses
+    if (!this.useApiIfAvailable) {
+      return this.getMockResponse(messages);
+    }
+    
     try {
       const response = await fetch(`${BASE_URL}/chat/completions`, {
         method: 'POST',
@@ -103,6 +130,15 @@ class DeepseekService {
 
       if (!response.ok) {
         const errorData = await response.text();
+        console.error(`API request failed: ${response.status} - ${errorData}`);
+        
+        // If we get a 402 Payment Required or other error, fall back to mock responses
+        if (response.status === 402) {
+          this.useApiIfAvailable = false;
+          toast.error("DeepSeek API credits depleted. Using simulated AI responses.");
+          return this.getMockResponse(messages);
+        }
+        
         throw new Error(`API request failed: ${response.status} - ${errorData}`);
       }
 
@@ -110,7 +146,51 @@ class DeepseekService {
       return data.choices[0]?.message.content || '';
     } catch (error) {
       console.error('Error generating chat response:', error);
-      return 'I apologize, but I encountered an issue. Could you please repeat that?';
+      
+      // Fall back to mock responses if API call fails
+      this.useApiIfAvailable = false;
+      return this.getMockResponse(messages);
+    }
+  }
+
+  private getMockResponse(messages: ChatMessage[]): string {
+    // Extract interview type from system message
+    const systemMessage = messages.find(m => m.role === 'system')?.content || '';
+    
+    let interviewType: 'coding' | 'oop' | 'behavioral' | 'systemDesign' = 'coding';
+    
+    if (systemMessage.includes('object-oriented programming')) {
+      interviewType = 'oop';
+    } else if (systemMessage.includes('behavioral interview')) {
+      interviewType = 'behavioral';
+    } else if (systemMessage.includes('system design')) {
+      interviewType = 'systemDesign';
+    }
+    
+    // Check if this is the first question or a feedback request
+    const isInitialQuestion = messages.length <= 2 && messages.some(m => 
+      m.role === 'user' && 
+      m.content.includes('initial interview question')
+    );
+    
+    const isFinalFeedback = messages.some(m => 
+      m.role === 'user' && 
+      (m.content.includes('interview is now complete') || m.content.includes('provide detailed feedback'))
+    );
+    
+    if (isInitialQuestion) {
+      return MOCK_RESPONSES[interviewType].initial;
+    } else if (isFinalFeedback) {
+      return MOCK_RESPONSES[interviewType].feedback;
+    } else {
+      // For regular conversation, provide a generic follow-up
+      const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+      
+      if (lastUserMessage.length < 50) {
+        return "Could you elaborate more on that point? I'd like to understand your approach in more detail.";
+      } else {
+        return "That's an interesting perspective. Let me ask you a follow-up question: how would you handle edge cases in this scenario?";
+      }
     }
   }
 
@@ -157,6 +237,18 @@ class DeepseekService {
     interviewType: 'coding' | 'oop' | 'behavioral' | 'systemDesign',
     conversation: ChatMessage[]
   ): Promise<number> {
+    if (!this.useApiIfAvailable) {
+      // Return mock scores when API is not available
+      const scores = {
+        coding: 85,
+        oop: 82,
+        behavioral: 88,
+        systemDesign: 78
+      };
+      
+      return scores[interviewType];
+    }
+    
     const systemPrompt = `You are an AI evaluator tasked with providing a numerical assessment of a candidate's interview performance.
 Based on the interview transcript provided, assign a score from 0 to 100 that represents the candidate's overall performance.
 Only output a number from 0 to 100 without any other text or explanation.`;
@@ -169,10 +261,16 @@ Only output a number from 0 to 100 without any other text or explanation.`;
       }
     ];
     
-    const response = await this.generateChatResponse(messages, 0.3, 10);
-    const score = parseInt(response.trim(), 10);
-    
-    return isNaN(score) ? 75 : Math.min(100, Math.max(0, score));
+    try {
+      const response = await this.generateChatResponse(messages, 0.3, 10);
+      const score = parseInt(response.trim(), 10);
+      
+      return isNaN(score) ? 75 : Math.min(100, Math.max(0, score));
+    } catch (error) {
+      console.error('Error getting performance score:', error);
+      // Return a default score if there's an error
+      return 75;
+    }
   }
 }
 
