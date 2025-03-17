@@ -26,6 +26,7 @@ const SpeechHandler = ({
   const [isMuted, setIsMuted] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [isPreparingToSpeak, setIsPreparingToSpeak] = useState(false);
+  const [pendingTranscripts, setPendingTranscripts] = useState<string[]>([]);
 
   // Check if browser supports speech recognition and synthesis
   useEffect(() => {
@@ -57,10 +58,30 @@ const SpeechHandler = ({
     }
   }, [aiMessage, isMuted, setIsAiSpeaking]);
 
+  // Send accumulated transcripts when AI stops speaking
+  useEffect(() => {
+    if (!isAiSpeaking && pendingTranscripts.length > 0) {
+      // Send accumulated transcript to parent component
+      const fullTranscript = pendingTranscripts.join(' ');
+      if (fullTranscript.trim()) {
+        onSpeechResult(fullTranscript);
+      }
+      setPendingTranscripts([]);
+    }
+  }, [isAiSpeaking, pendingTranscripts, onSpeechResult]);
+
   // Handle speech recognition results
   const handleSpeechResult = useCallback((result: string) => {
     setTranscript(result);
-  }, []);
+    
+    // If AI is speaking, store transcripts to send later
+    if (isAiSpeaking) {
+      setPendingTranscripts(prev => [...prev, result]);
+    } else {
+      // Only send immediately if AI is not speaking
+      onSpeechResult(result);
+    }
+  }, [isAiSpeaking, onSpeechResult]);
 
   // Toggle listening state
   const toggleListening = useCallback(() => {
@@ -69,7 +90,7 @@ const SpeechHandler = ({
       setIsListening(false);
       
       // If there's content in the transcript, send it
-      if (transcript.trim()) {
+      if (transcript.trim() && !isAiSpeaking) {
         onSpeechResult(transcript);
         setTranscript('');
       }
@@ -85,7 +106,7 @@ const SpeechHandler = ({
         console.error('Failed to start listening');
       }
     }
-  }, [isListening, transcript, onSpeechResult, onSpeechEnd, handleSpeechResult]);
+  }, [isListening, transcript, isAiSpeaking, onSpeechResult, onSpeechEnd, handleSpeechResult]);
 
   // Toggle mute state
   const toggleMute = useCallback(() => {

@@ -151,6 +151,7 @@ class DeepseekService {
       
       // Fall back to mock responses if API call fails
       this.useApiIfAvailable = false;
+      toast.error("Failed to reach DeepSeek API. Using simulated AI responses.");
       return this.getMockResponse(messages);
     }
   }
@@ -221,14 +222,17 @@ class DeepseekService {
   ): Promise<string> {
     const systemPrompt = this.getSystemPrompt(interviewType);
     
+    // Create a prompt that instructs the AI to consider the most recent user message
+    let promptMessage = finalEvaluation 
+      ? 'The interview is now complete. Please provide a detailed evaluation of my performance with a numerical score from 0-100 and specific feedback on what I did well and what I could improve.' 
+      : 'Please provide direct feedback on my last response and continue the interview with a follow-up question. Make sure to address any misconceptions or inaccuracies in my previous answer.';
+    
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
       ...conversation,
       { 
         role: 'user', 
-        content: finalEvaluation 
-          ? 'The interview is now complete. Please provide a detailed evaluation of my performance with a numerical score from 0-100 and specific feedback on what I did well and what I could improve.' 
-          : 'Could you provide feedback on my last response and continue the interview with another question or follow-up?' 
+        content: promptMessage 
       }
     ];
     

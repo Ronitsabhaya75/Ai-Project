@@ -1,156 +1,121 @@
 
-// Define the necessary types for browser speech recognition
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
+// Define types for the Web Speech API since TypeScript doesn't include them by default
+interface Window {
+  SpeechRecognition: typeof SpeechRecognition;
+  webkitSpeechRecognition: typeof SpeechRecognition;
 }
 
-interface SpeechRecognitionEvent extends Event {
+interface SpeechRecognitionEvent {
+  resultIndex: number;
   results: SpeechRecognitionResultList;
 }
 
-interface SpeechRecognitionResultList {
-  readonly length: number;
-  [index: number]: SpeechRecognitionResult;
-  item(index: number): SpeechRecognitionResult;
-}
-
-interface SpeechRecognitionResult {
-  readonly length: number;
-  [index: number]: SpeechRecognitionAlternative;
-  item(index: number): SpeechRecognitionAlternative;
-  isFinal?: boolean;
-}
-
-interface SpeechRecognitionAlternative {
-  readonly transcript: string;
-  readonly confidence: number;
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: (event: SpeechRecognitionEvent) => void;
-  onend: () => void;
-  onerror: (event: Event) => void;
-  start(): void;
-  stop(): void;
-}
-
-class SpeechUtils {
-  private recognition: SpeechRecognition | null = null;
-  private synthesis: SpeechSynthesis | null = null;
-  private isListening: boolean = false;
-  private onResultCallback: ((transcript: string) => void) | null = null;
-  private onEndCallback: (() => void) | null = null;
-
-  constructor() {
-    // Initialize speech recognition if available
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-      this.recognition = new SpeechRecognitionAPI();
-      this.recognition.continuous = true;
-      this.recognition.interimResults = true;
-      this.recognition.lang = 'en-US';
-
-      this.recognition.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map(result => result[0])
-          .map(result => result.transcript)
-          .join('');
-        
-        if (this.onResultCallback) {
-          this.onResultCallback(transcript);
-        }
-      };
-
-      this.recognition.onend = () => {
-        if (this.isListening) {
-          this.recognition?.start();
-        } else if (this.onEndCallback) {
-          this.onEndCallback();
-        }
-      };
-    } else {
-      console.error('Speech recognition not supported in this browser');
-    }
-
-    // Initialize speech synthesis if available
-    if ('speechSynthesis' in window) {
-      this.synthesis = window.speechSynthesis;
-    } else {
-      console.error('Speech synthesis not supported in this browser');
-    }
-  }
-
-  startListening(onResult: (transcript: string) => void, onEnd?: () => void): boolean {
-    if (!this.recognition) {
-      console.error('Speech recognition not available');
-      return false;
-    }
-
-    this.onResultCallback = onResult;
-    this.onEndCallback = onEnd || null;
-    this.isListening = true;
-
+// Define the speech recognition and synthesis functionality
+const speechUtils = {
+  recognition: null as SpeechRecognition | null,
+  synthesis: window.speechSynthesis,
+  
+  // Check if the platform supports speech recognition and synthesis
+  isPlatformSupported: (): boolean => {
+    const speechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    return !!speechRecognition && !!window.speechSynthesis;
+  },
+  
+  // Start listening for speech
+  startListening: (onResult: (transcript: string) => void): boolean => {
     try {
-      this.recognition.start();
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        console.error('Speech recognition not supported in this browser');
+        return false;
+      }
+      
+      // Create a new speech recognition instance
+      const recognition = new SpeechRecognition();
+      speechUtils.recognition = recognition;
+      
+      // Configure recognition
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      // Handle results
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            // For interim results, update in real-time
+            onResult(transcript);
+          }
+        }
+        
+        if (finalTranscript) {
+          onResult(finalTranscript);
+        }
+      };
+      
+      // Handle errors
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error', event.error);
+      };
+      
+      // Start listening
+      recognition.start();
       return true;
     } catch (error) {
-      console.error('Error starting speech recognition:', error);
-      this.isListening = false;
+      console.error('Error starting speech recognition', error);
       return false;
     }
-  }
-
-  stopListening(): void {
-    if (!this.recognition) return;
-    
-    this.isListening = false;
-    try {
-      this.recognition.stop();
-    } catch (error) {
-      console.error('Error stopping speech recognition:', error);
+  },
+  
+  // Stop listening
+  stopListening: (): void => {
+    if (speechUtils.recognition) {
+      speechUtils.recognition.stop();
+      speechUtils.recognition = null;
     }
-  }
-
-  speak(text: string, onEnd?: () => void): void {
-    if (!this.synthesis) {
-      console.error('Speech synthesis not available');
+  },
+  
+  // Speak text using speech synthesis
+  speak: (text: string, onEnd?: () => void): void => {
+    if (!window.speechSynthesis) {
+      console.error('Speech synthesis not supported in this browser');
+      if (onEnd) onEnd();
       return;
     }
-
-    // Cancel any ongoing speech
-    this.synthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
     
+    // Cancel any ongoing speech
+    speechUtils.cancelSpeech();
+    
+    // Create a new utterance
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Configure utterance
+    utterance.lang = 'en-US';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    
+    // Handle end of speech
     if (onEnd) {
       utterance.onend = onEnd;
     }
-
-    this.synthesis.speak(utterance);
+    
+    // Start speaking
+    speechUtils.synthesis.speak(utterance);
+  },
+  
+  // Cancel ongoing speech
+  cancelSpeech: (): void => {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
   }
+};
 
-  cancelSpeech(): void {
-    if (!this.synthesis) return;
-    this.synthesis.cancel();
-  }
-
-  isPlatformSupported(): boolean {
-    return !!this.recognition && !!this.synthesis;
-  }
-
-  getVoices(): SpeechSynthesisVoice[] {
-    if (!this.synthesis) return [];
-    return this.synthesis.getVoices();
-  }
-}
-
-export default new SpeechUtils();
+export default speechUtils;
