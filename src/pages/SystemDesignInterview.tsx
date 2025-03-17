@@ -167,10 +167,16 @@ const SystemDesignInterview = () => {
     setIsProcessing(true);
     
     try {
+      // Prepare a summary of the notes for the AI
+      const notesSummary = designNotes.length > 0 ? 
+        `Throughout the interview, I've made the following design notes:
+${designNotes.map(note => `- ${note.category.toUpperCase()}: ${note.text}`).join('\n')}
+` : '';
+      
       // Tell the AI we're ending the interview and ask for final feedback
       const completionMessage: ChatMessage = {
         role: 'user',
-        content: 'The interview is now complete. Could you provide detailed feedback on my system design solution, including a score from 0-100?'
+        content: `The interview is now complete. ${notesSummary}Could you provide detailed feedback on my performance, including a score from 0-100?`
       };
       
       // Get final evaluation
@@ -196,21 +202,19 @@ const SystemDesignInterview = () => {
       // Generate performance data for the chart
       const performancePoints: DataPoint[] = [];
       
-      // Create categories for system design performance stages
-      const categories = ['Requirements', 'High-Level', 'Components', 'Tradeoffs', 'Scaling', 'Final'];
-      
       // Sample data points for the chart (in a real app, this would be based on actual performance metrics)
-      for (let i = 0; i < 5; i++) {
+      for (let i = 1; i <= 5; i++) {
+        const milestone = i * 20;
         const value = Math.min(100, Math.max(0, score - 15 + Math.random() * 30));
         performancePoints.push({
-          name: categories[i],
+          name: `Phase ${i}`,
           value: Math.round(value)
         });
       }
       
       // Ensure the final point is exactly the score
       performancePoints.push({
-        name: categories[5],
+        name: 'Final',
         value: score
       });
       
@@ -264,23 +268,39 @@ const SystemDesignInterview = () => {
     
     // Ensure we have at least one item of each type
     if (!items.some(item => item.type === 'positive')) {
-      items.push({ type: 'positive', content: 'You addressed the key components of system design and attempted to create a cohesive architecture.' });
+      items.push({ type: 'positive', content: 'You demonstrated understanding of system design concepts and component interactions.' });
     }
     
     if (!items.some(item => item.type === 'negative')) {
-      items.push({ type: 'negative', content: 'Consider spending more time on scalability aspects and discussing trade-offs in your design decisions.' });
+      items.push({ type: 'negative', content: 'Consider discussing more about data consistency and failure handling in distributed systems.' });
     }
     
     if (!items.some(item => item.type === 'suggestion')) {
-      items.push({ type: 'suggestion', content: 'Practice drawing system design diagrams and breaking down complex systems into manageable components.' });
+      items.push({ type: 'suggestion', content: 'Practice drawing system diagrams and explaining trade-offs between different architectural choices.' });
     }
     
     return { summary, items };
   };
 
+  // Get color for note category
+  const getCategoryColor = (category: SystemDesignNote['category']): string => {
+    switch (category) {
+      case 'requirements':
+        return 'bg-blue-500/20 text-blue-500 border-blue-500/30';
+      case 'components':
+        return 'bg-purple-500/20 text-purple-500 border-purple-500/30';
+      case 'scaling':
+        return 'bg-orange-500/20 text-orange-500 border-orange-500/30';
+      case 'tradeoffs':
+        return 'bg-pink-500/20 text-pink-500 border-pink-500/30';
+      default:
+        return 'bg-white/20 text-white/80 border-white/30';
+    }
+  };
+
   // Handle the timer running out
   const handleTimeUp = () => {
-    toast.warning('Time is up! Please wrap up your design.');
+    toast.warning('Time is up! Concluding the interview.');
     
     // In a full app, you might want to give a grace period before automatically ending the interview
     setTimeout(() => {
@@ -288,26 +308,6 @@ const SystemDesignInterview = () => {
         handleCompleteInterview();
       }
     }, 10000); // 10-second grace period
-  };
-  
-  const getCategoryColor = (category: SystemDesignNote['category']) => {
-    switch(category) {
-      case 'requirements': return 'bg-blue-500/20 text-blue-500';
-      case 'components': return 'bg-green-500/20 text-green-500';
-      case 'scaling': return 'bg-yellow-500/20 text-yellow-500';
-      case 'tradeoffs': return 'bg-purple-500/20 text-purple-500';
-      default: return 'bg-white/20 text-white';
-    }
-  };
-
-  const getCategoryLabel = (category: SystemDesignNote['category']) => {
-    switch(category) {
-      case 'requirements': return 'Requirements';
-      case 'components': return 'Components';
-      case 'scaling': return 'Scaling';
-      case 'tradeoffs': return 'Trade-offs';
-      default: return 'Note';
-    }
   };
 
   return (
@@ -335,7 +335,7 @@ const SystemDesignInterview = () => {
             <h1 className="text-2xl md:text-3xl font-bold text-white mt-2">
               {stage === 'preparation' ? 'Prepare for System Design Interview' : 
                stage === 'results' ? 'Interview Results' : 
-               'System Design Challenge'}
+               'System Design Interview'}
             </h1>
           </div>
           
@@ -352,7 +352,7 @@ const SystemDesignInterview = () => {
             <h2 className="text-xl font-bold text-white mb-4">Ready to Begin</h2>
             <p className="text-white/70 mb-6">
               You are about to start a 30-minute system design interview. The AI interviewer will present you 
-              with a system design challenge, and you'll need to discuss your approach to designing a scalable solution.
+              with a system design problem, and you'll be expected to discuss your approach to designing a scalable solution.
             </p>
             
             <div className="glass-panel p-4 mb-6">
@@ -368,30 +368,30 @@ const SystemDesignInterview = () => {
             </div>
             
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-white">System Design Framework:</h3>
+              <h3 className="text-lg font-medium text-white">System Design Process:</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="glass-panel p-3">
-                  <div className="text-blue-500 font-medium mb-1">Requirements Clarification</div>
+                  <div className="text-blue-400 font-medium mb-1">1. Requirements Gathering</div>
                   <p className="text-white/70 text-sm">
-                    Ask questions to clarify functional and non-functional requirements
+                    Clarify functional and non-functional requirements
                   </p>
                 </div>
                 <div className="glass-panel p-3">
-                  <div className="text-green-500 font-medium mb-1">High-Level Design</div>
+                  <div className="text-purple-400 font-medium mb-1">2. Component Design</div>
                   <p className="text-white/70 text-sm">
-                    Define major components and their interactions
+                    Identify major components and their interactions
                   </p>
                 </div>
                 <div className="glass-panel p-3">
-                  <div className="text-yellow-500 font-medium mb-1">Scaling & Performance</div>
+                  <div className="text-orange-400 font-medium mb-1">3. Scaling Strategy</div>
                   <p className="text-white/70 text-sm">
-                    Address bottlenecks and scaling strategies for high traffic
+                    Address performance, availability, and reliability
                   </p>
                 </div>
                 <div className="glass-panel p-3">
-                  <div className="text-purple-500 font-medium mb-1">Trade-offs Discussion</div>
+                  <div className="text-pink-400 font-medium mb-1">4. Trade-offs</div>
                   <p className="text-white/70 text-sm">
-                    Analyze different approaches and their trade-offs
+                    Discuss trade-offs in your design decisions
                   </p>
                 </div>
               </div>
@@ -419,8 +419,8 @@ const SystemDesignInterview = () => {
         {stage === 'interview' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
             {/* Left panel - Conversation */}
-            <div>
-              <Card className="glass-panel h-[500px] flex flex-col overflow-hidden mb-4">
+            <div className="flex flex-col gap-4">
+              <Card className="glass-panel h-[400px] flex flex-col overflow-hidden">
                 <div className="p-4 bg-dark-lighter border-b border-white/10">
                   <h2 className="text-white font-medium">Interview Conversation</h2>
                 </div>
@@ -468,7 +468,7 @@ const SystemDesignInterview = () => {
                 aiMessage={currentAiMessage}
               />
               
-              <div className="flex justify-end mt-4">
+              <div className="flex justify-end mt-2">
                 <Button 
                   className="btn-primary"
                   onClick={handleCompleteInterview}
@@ -479,80 +479,140 @@ const SystemDesignInterview = () => {
               </div>
             </div>
             
-            {/* Right panel - Design notes */}
-            <div>
-              <Card className="glass-panel h-[500px] flex flex-col overflow-hidden">
-                <div className="p-4 bg-dark-lighter border-b border-white/10">
-                  <h2 className="text-white font-medium">Design Notes</h2>
+            {/* Right panel - Design Notes */}
+            <div className="space-y-4">
+              <Card className="glass-panel p-4">
+                <h3 className="text-lg font-medium text-radium mb-3 flex items-center gap-2">
+                  <Database size={18} />
+                  Design Notes
+                </h3>
+                
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    className={`${newNoteCategory === 'requirements' ? 
+                      'bg-blue-500/20 text-blue-400 border-blue-500/30' : 
+                      'bg-transparent text-white/60 border-white/20'}`}
+                    onClick={() => setNewNoteCategory('requirements')}
+                  >
+                    Requirements
+                  </Button>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    className={`${newNoteCategory === 'components' ? 
+                      'bg-purple-500/20 text-purple-400 border-purple-500/30' : 
+                      'bg-transparent text-white/60 border-white/20'}`}
+                    onClick={() => setNewNoteCategory('components')}
+                  >
+                    Components
+                  </Button>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    className={`${newNoteCategory === 'scaling' ? 
+                      'bg-orange-500/20 text-orange-400 border-orange-500/30' : 
+                      'bg-transparent text-white/60 border-white/20'}`}
+                    onClick={() => setNewNoteCategory('scaling')}
+                  >
+                    Scaling
+                  </Button>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    className={`${newNoteCategory === 'tradeoffs' ? 
+                      'bg-pink-500/20 text-pink-400 border-pink-500/30' : 
+                      'bg-transparent text-white/60 border-white/20'}`}
+                    onClick={() => setNewNoteCategory('tradeoffs')}
+                  >
+                    Trade-offs
+                  </Button>
                 </div>
                 
-                <div className="flex-grow overflow-y-auto p-4 space-y-3">
-                  {designNotes.length > 0 ? (
-                    designNotes.map((note) => (
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    className="flex-1 p-2 bg-dark-lighter border border-white/20 rounded text-white text-sm focus:border-radium focus:outline-none"
+                    placeholder="Add a design note..."
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        addNote();
+                      }
+                    }}
+                  />
+                  <Button 
+                    variant="default" 
+                    className="bg-radium hover:bg-radium-light text-black"
+                    onClick={addNote}
+                  >
+                    <CheckCircle size={16} />
+                  </Button>
+                </div>
+                
+                <div className="max-h-[250px] overflow-y-auto space-y-2 pr-1">
+                  {designNotes.length === 0 ? (
+                    <p className="text-white/50 text-center text-sm italic py-4">
+                      Add notes about your system design here
+                    </p>
+                  ) : (
+                    designNotes.map(note => (
                       <div 
                         key={note.id}
-                        className="p-2 border border-white/10 rounded-md bg-dark-lighter group relative"
+                        className={`p-2 text-sm rounded border ${getCategoryColor(note.category)} flex justify-between items-start`}
                       >
-                        <div className="flex justify-between items-start">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryColor(note.category)}`}>
-                            {getCategoryLabel(note.category)}
-                          </span>
-                          <button 
-                            className="text-white/40 hover:text-white/80 transition-colors opacity-0 group-hover:opacity-100"
-                            onClick={() => deleteNote(note.id)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        <p className="text-white/80 text-sm mt-1">{note.text}</p>
+                        <span className="mr-2">{note.text}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 hover:bg-white/10 text-white/40 hover:text-white/80"
+                          onClick={() => deleteNote(note.id)}
+                        >
+                          <Trash2 size={12} />
+                        </Button>
                       </div>
                     ))
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-white/40 text-sm">
-                      <Database size={40} className="mb-2 opacity-30" />
-                      <p>No design notes yet. Add some to help with your system design.</p>
-                    </div>
                   )}
-                  <div ref={notesEndRef} />
+                  <div ref={notesEndRef}></div>
                 </div>
-                
-                <div className="p-4 border-t border-white/10 bg-dark-lighter">
-                  <div className="flex mb-2">
-                    <select
-                      value={newNoteCategory}
-                      onChange={(e) => setNewNoteCategory(e.target.value as SystemDesignNote['category'])}
-                      className="text-xs p-1 mr-2 bg-dark border border-white/20 rounded text-white"
-                    >
-                      <option value="requirements">Requirements</option>
-                      <option value="components">Components</option>
-                      <option value="scaling">Scaling</option>
-                      <option value="tradeoffs">Trade-offs</option>
-                    </select>
+              </Card>
+              
+              <Card className="glass-panel p-4">
+                <CardContent className="p-0">
+                  <h3 className="text-lg font-medium text-radium mb-3">System Design Key Aspects</h3>
+                  
+                  <div className="text-white/80 text-sm space-y-4">
+                    <div>
+                      <h4 className="font-medium text-blue-400 mb-1">Scalability</h4>
+                      <p className="text-white/60 text-xs">
+                        Horizontal scaling (more machines) vs. vertical scaling (more power)
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium text-purple-400 mb-1">Reliability</h4>
+                      <p className="text-white/60 text-xs">
+                        Redundancy, fault tolerance, graceful degradation
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium text-orange-400 mb-1">Performance</h4>
+                      <p className="text-white/60 text-xs">
+                        Latency, throughput, caching strategies
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium text-pink-400 mb-1">Consistency</h4>
+                      <p className="text-white/60 text-xs">
+                        Strong vs. eventual consistency, CAP theorem considerations
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex">
-                    <input
-                      type="text"
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      placeholder="Add a design note..."
-                      className="input-primary flex-grow text-sm mr-2 py-2"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addNote();
-                        }
-                      }}
-                    />
-                    <Button
-                      onClick={addNote}
-                      disabled={!newNote.trim()}
-                      size="sm"
-                      className="bg-radium text-black hover:bg-radium-light"
-                    >
-                      <CheckCircle size={16} />
-                    </Button>
-                  </div>
-                </div>
+                </CardContent>
               </Card>
             </div>
           </div>
@@ -581,35 +641,58 @@ const SystemDesignInterview = () => {
               <div className="lg:col-span-2">
                 <LineChart
                   data={performanceData}
-                  title="Performance By Design Stage"
+                  title="Performance Throughout Interview"
                   height={300}
                   color="#1E90FF"
                 />
               </div>
             </div>
             
-            <div className="glass-panel p-6">
-              <h3 className="text-lg font-bold text-white mb-4">Design Notes</h3>
-              
-              {designNotes.length > 0 ? (
+            {designNotes.length > 0 && (
+              <div className="glass-panel p-6 mb-6">
+                <h3 className="text-lg font-bold text-white mb-4">Your Design Notes</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {designNotes.map((note) => (
-                    <div 
-                      key={note.id}
-                      className="p-3 border border-white/10 rounded-md bg-dark-lighter"
-                    >
-                      <div className={`text-xs px-2 py-0.5 rounded-full inline-block mb-2 ${getCategoryColor(note.category)}`}>
-                        {getCategoryLabel(note.category)}
+                  {/* Group notes by category */}
+                  {(['requirements', 'components', 'scaling', 'tradeoffs'] as const).map(category => {
+                    const categoryNotes = designNotes.filter(note => note.category === category);
+                    if (categoryNotes.length === 0) return null;
+                    
+                    return (
+                      <div key={category} className="glass-panel p-4">
+                        <h4 className={`font-medium mb-3 ${
+                          category === 'requirements' ? 'text-blue-400' :
+                          category === 'components' ? 'text-purple-400' :
+                          category === 'scaling' ? 'text-orange-400' :
+                          'text-pink-400'
+                        }`}>
+                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                        </h4>
+                        <ul className="space-y-2">
+                          {categoryNotes.map(note => (
+                            <li key={note.id} className="text-white/80 text-sm">
+                              • {note.text}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <p className="text-white/80 text-sm">{note.text}</p>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            <div className="glass-panel p-6">
+              <h3 className="text-lg font-bold text-white mb-4">Interview Transcript</h3>
+              <div className="max-h-[300px] overflow-y-auto border border-white/10 rounded-lg p-4 bg-dark-lighter text-white/80 text-sm space-y-4">
+                {messages.slice(1).map((message, index) => (
+                  <div key={index} className="space-y-1">
+                    <div className={`font-medium ${message.role === 'assistant' ? 'text-radium' : 'text-white'}`}>
+                      {message.role === 'assistant' ? 'Interviewer' : 'You'}:
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-white/50 py-6">
-                  You didn't add any design notes during this interview.
-                </div>
-              )}
+                    <p className="whitespace-pre-wrap pl-4">{message.content}</p>
+                  </div>
+                ))}
+              </div>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center mt-6">
                 <Button 
@@ -626,11 +709,11 @@ const SystemDesignInterview = () => {
                     setStage('preparation');
                     setMessages([]);
                     setCurrentAiMessage('');
-                    setDesignNotes([]);
                     setFinalScore(0);
                     setPerformanceData([]);
                     setFeedbackItems([]);
                     setFeedbackSummary('');
+                    setDesignNotes([]);
                   }}
                 >
                   Start New Interview
