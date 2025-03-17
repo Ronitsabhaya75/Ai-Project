@@ -1,4 +1,12 @@
 
+// Define the necessary types for browser speech recognition
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
+
 class SpeechUtils {
   private recognition: SpeechRecognition | null = null;
   private synthesis: SpeechSynthesis | null = null;
