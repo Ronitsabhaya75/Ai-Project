@@ -1,4 +1,4 @@
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
 const BASE_URL = import.meta.env.VITE_DEEPSEEK_BASE_URL;
@@ -24,7 +24,6 @@ interface ChatCompletionResponse {
   }[];
 }
 
-// Prompt templates for different interview types
 const SYSTEM_PROMPTS = {
   coding: `You are an expert technical interviewer conducting a coding interview. Your role is to:
 1. Ask coding questions and provide feedback on the candidate's solutions
@@ -81,7 +80,6 @@ Respond to candidate messages as if you're speaking. Keep your responses concise
 Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
 };
 
-// Mock responses for when the API is not available
 const MOCK_RESPONSES = {
   coding: {
     initial: "Today, I'd like you to implement a function that finds two numbers in an array that add up to a specific target. Could you start by explaining your approach to this problem?",
@@ -156,7 +154,6 @@ class DeepseekService {
   }
 
   private getMockResponse(messages: ChatMessage[]): string {
-    // Extract interview type from system message
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     
     let interviewType: 'coding' | 'oop' | 'behavioral' | 'systemDesign' = 'coding';
@@ -169,7 +166,6 @@ class DeepseekService {
       interviewType = 'systemDesign';
     }
     
-    // Check if this is the first question or a feedback request
     const isInitialQuestion = messages.length <= 2 && messages.some(m => 
       m.role === 'user' && 
       m.content.includes('initial interview question')
@@ -185,7 +181,6 @@ class DeepseekService {
     } else if (isFinalFeedback) {
       return MOCK_RESPONSES[interviewType].feedback;
     } else {
-      // For regular conversation, provide a generic follow-up
       const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
       
       if (lastUserMessage.length < 50) {
@@ -221,7 +216,6 @@ class DeepseekService {
   ): Promise<string> {
     const systemPrompt = this.getSystemPrompt(interviewType);
     
-    // Create a prompt that instructs the AI to consider the most recent user message
     let promptMessage = finalEvaluation 
       ? 'The interview is now complete. Please provide a detailed evaluation of my performance with a numerical score from 0-100 and specific feedback on what I did well and what I could improve.' 
       : 'Please provide direct feedback on my last response and continue the interview with a follow-up question. Make sure to address any misconceptions or inaccuracies in my previous answer.';
@@ -243,7 +237,6 @@ class DeepseekService {
     conversation: ChatMessage[]
   ): Promise<number> {
     if (!this.useApiIfAvailable) {
-      // Return mock scores when API is not available
       const scores = {
         coding: 85,
         oop: 82,
@@ -273,7 +266,6 @@ Only output a number from 0 to 100 without any other text or explanation.`;
       return isNaN(score) ? 75 : Math.min(100, Math.max(0, score));
     } catch (error) {
       console.error('Error getting performance score:', error);
-      // Return a default score if there's an error
       return 75;
     }
   }
