@@ -25,6 +25,7 @@ const CodeEditor = ({
   const [code, setCode] = useState(initialCode);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
   const codeRef = useRef<HTMLTextAreaElement>(null);
+  const lastRunCodeRef = useRef<string>('');
 
   useEffect(() => {
     setCode(initialCode);
@@ -42,7 +43,13 @@ const CodeEditor = ({
     if (onRun) {
       // Only run non-empty code
       if (code.trim()) {
-        onRun(code);
+        // Check if code is different from last run
+        if (code.trim() !== lastRunCodeRef.current.trim()) {
+          lastRunCodeRef.current = code;
+          onRun(code);
+        } else {
+          toast.info('Please modify your code before running again');
+        }
       } else {
         toast.warning('Please write some code before running');
       }
@@ -54,6 +61,7 @@ const CodeEditor = ({
   const handleClear = () => {
     if (window.confirm('Are you sure you want to clear the code?')) {
       setCode('');
+      lastRunCodeRef.current = '';
       if (codeRef.current) {
         codeRef.current.focus();
       }
@@ -83,6 +91,15 @@ const CodeEditor = ({
         return 'language-cpp';
       default:
         return 'language-javascript';
+    }
+  };
+
+  // Keyboard shortcuts for running code
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Ctrl+Enter or Cmd+Enter to run code
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleRun();
     }
   };
 
@@ -152,6 +169,7 @@ const CodeEditor = ({
           ref={codeRef}
           value={code}
           onChange={(e) => setCode(e.target.value)}
+          onKeyDown={handleKeyDown}
           readOnly={readOnly}
           className={`
             w-full h-full p-4 bg-transparent text-white font-mono text-sm 

@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
@@ -45,7 +46,9 @@ When the candidate submits code, thoroughly evaluate it considering:
 - Code style and readability
 - Edge case handling
 
-Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
+Respond to candidate messages as if you're speaking. Keep your responses concise and focused.
+Always wait for the candidate to finish their thought before moving on to a new question.
+Don't interrupt with new questions if they're in the middle of explaining their approach.`,
 
   oop: `You are an expert technical interviewer conducting an object-oriented programming interview. Your role is to:
 1. Ask OOP-related questions covering principles, design patterns, and implementation
@@ -58,7 +61,9 @@ Respond to candidate messages as if you're speaking. Keep your responses concise
 4. Speak in a professional, clear manner as if in a real interview
 5. Don't reveal that you're an AI - act as a human interviewer
 
-Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
+Respond to candidate messages as if you're speaking. Keep your responses concise and focused.
+Always wait for the candidate to complete their thoughts before asking follow-up questions.
+Don't introduce new topics until the current one has been fully explored.`,
 
   behavioral: `You are an expert interviewer conducting a behavioral interview for a software engineering position. Your role is to:
 1. Ask behavioral questions to assess the candidate's soft skills, teamwork, problem-solving, and past experiences
@@ -72,7 +77,8 @@ Respond to candidate messages as if you're speaking. Keep your responses concise
 5. Don't reveal that you're an AI - act as a human interviewer
 
 Use the STAR method to evaluate responses (Situation, Task, Action, Result). 
-Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
+Respond to candidate messages as if you're speaking. Keep your responses concise and focused.
+Always wait for the candidate to finish their story or example before asking follow-up questions.`,
 
   systemDesign: `You are an expert technical interviewer conducting a system design interview. Your role is to:
 1. Present a system design challenge and evaluate the candidate's approach
@@ -85,32 +91,17 @@ Respond to candidate messages as if you're speaking. Keep your responses concise
 4. Speak in a professional, clear manner as if in a real interview
 5. Don't reveal that you're an AI - act as a human interviewer
 
-Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
-};
-
-const MOCK_RESPONSES = {
-  coding: {
-    initial: "Today, I'd like you to implement a function that finds two numbers in an array that add up to a specific target. Could you start by explaining your approach to this problem?",
-    feedback: "I've reviewed your solution. Your approach using a hash map to track values as you iterate through the array is efficient, giving us O(n) time complexity. Good job identifying that this avoids the nested loop O(n²) solution. You've also handled edge cases well. I'd score your solution at 85/100. To improve, consider discussing the space complexity trade-offs and perhaps mentioning alternative approaches even if they're less optimal."
-  },
-  oop: {
-    initial: "Let's start with a fundamental question. Could you explain the four main principles of Object-Oriented Programming and provide an example of each?",
-    feedback: "You've demonstrated a solid understanding of OOP principles. Your explanation of encapsulation, inheritance, polymorphism, and abstraction was clear. I particularly liked your real-world examples. You could improve by discussing some design patterns and their practical applications. Overall, I'd rate your performance at 82/100. You showed good conceptual knowledge but could strengthen the discussion of trade-offs between different OOP approaches."
-  },
-  behavioral: {
-    initial: "Tell me about a time when you faced a significant challenge in a project and how you overcame it.",
-    feedback: "You provided a well-structured response using the STAR method. Your example about the challenging project deadline was relevant and demonstrated your problem-solving skills. I appreciate how you highlighted both your individual contribution and team collaboration. For improvement, try to quantify your impact more precisely. I'd rate your performance at 88/100. Your communication was clear, though sometimes your examples could be more concise and focused."
-  },
-  systemDesign: {
-    initial: "Today I'd like you to design a URL shortening service similar to TinyURL or bit.ly. Can you walk me through your approach to designing this system?",
-    feedback: "Your system design solution demonstrated good knowledge of the key components needed. You correctly identified the need for a URL mapping database, a hashing function, and an API layer. Your discussion of scalability using a distributed cache was particularly strong. Areas for improvement include more detailed discussion of database partitioning strategies and analytics capabilities. Overall, I'd rate your performance at 78/100. You covered the core aspects well but could go deeper on reliability and data consistency concerns."
-  }
+Respond to candidate messages as if you're speaking. Keep your responses concise and focused.
+Allow the candidate to fully explore each component of their design before moving to the next topic.
+Don't interrupt their explanations with new requirements until they've completed their current thought.`,
 };
 
 class DeepseekService {
   private useApiIfAvailable = true;
   private lastUserMessage = '';
   private lastAiResponse = '';
+  private currentConversationId = '';
+  private interviewProgress = 0; // 0-100 indicating progress through the interview
   
   async generateChatResponse(
     messages: ChatMessage[],
@@ -119,16 +110,28 @@ class DeepseekService {
   ): Promise<string> {
     const currentUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
     
+    // Reset interview progress if a new question is detected
+    if (currentUserMessage.includes('I will be conducting a coding interview with you today')) {
+      this.interviewProgress = 0;
+      this.currentConversationId = Date.now().toString();
+    } else if (currentUserMessage.toLowerCase().includes('how was the interview') || 
+               currentUserMessage.toLowerCase().includes('rate my performance')) {
+      this.interviewProgress = 100;
+    } else {
+      // Increment the progress for each interaction
+      this.interviewProgress = Math.min(95, this.interviewProgress + 5);
+    }
+    
     if (currentUserMessage === this.lastUserMessage && this.lastAiResponse) {
       const systemDirective: ChatMessage = {
         role: 'system',
-        content: 'Please provide a different, progressive response than your last answer. Move the conversation forward.'
+        content: 'Please provide a different, progressive response than your last answer. Move the conversation forward without repeating yourself. Respond directly to what the candidate is saying.'
       };
       messages = [...messages, systemDirective];
     }
     
     if (!this.useApiIfAvailable) {
-      const mockResponse = this.getMockResponse(messages);
+      const mockResponse = this.getMockResponse(messages, currentUserMessage);
       
       this.lastUserMessage = currentUserMessage;
       this.lastAiResponse = mockResponse;
@@ -158,7 +161,7 @@ class DeepseekService {
         if (response.status === 402) {
           this.useApiIfAvailable = false;
           toast.error("DeepSeek API credits depleted. Using simulated AI responses.");
-          return this.getMockResponse(messages);
+          return this.getMockResponse(messages, currentUserMessage);
         }
         
         throw new Error(`API request failed: ${response.status} - ${errorData}`);
@@ -177,7 +180,7 @@ class DeepseekService {
       this.useApiIfAvailable = false;
       toast.error("Failed to reach DeepSeek API. Using simulated AI responses.");
       
-      const mockResponse = this.getMockResponse(messages);
+      const mockResponse = this.getMockResponse(messages, currentUserMessage);
       
       this.lastUserMessage = currentUserMessage;
       this.lastAiResponse = mockResponse;
@@ -186,7 +189,7 @@ class DeepseekService {
     }
   }
 
-  private getMockResponse(messages: ChatMessage[]): string {
+  private getMockResponse(messages: ChatMessage[], currentUserMessage: string): string {
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     
     let interviewType: 'coding' | 'oop' | 'behavioral' | 'systemDesign' = 'coding';
@@ -199,40 +202,93 @@ class DeepseekService {
       interviewType = 'systemDesign';
     }
     
-    const isInitialQuestion = messages.length <= 2 && messages.some(m => 
+    // Check for specific message types
+    const isInitialQuestion = messages.some(m => 
       m.role === 'user' && 
-      m.content.includes('initial interview question')
+      (m.content.includes('initial interview question') || m.content.includes('conducting a coding interview with you today'))
     );
     
     const isFinalFeedback = messages.some(m => 
       m.role === 'user' && 
-      (m.content.includes('interview is now complete') || m.content.includes('provide detailed feedback'))
+      (m.content.includes('interview is now complete') || 
+       m.content.includes('provide detailed feedback') ||
+       m.content.toLowerCase().includes('how was the interview') ||
+       m.content.toLowerCase().includes('rate my performance'))
     );
     
-    const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
-    const containsCode = lastUserMessage.includes('```') || 
-                         lastUserMessage.includes('I\'ve written this code');
+    const isRatingRequest = currentUserMessage.toLowerCase().includes('rate if it was google') || 
+                           currentUserMessage.toLowerCase().includes('rate all skills');
     
+    const containsCode = currentUserMessage.includes('```') || 
+                         currentUserMessage.includes('class ') ||
+                         currentUserMessage.includes('def ') ||
+                         currentUserMessage.includes('function') ||
+                         currentUserMessage.includes('I\'ve written this code');
+                         
+    // Analyze the question type for better responses
+    const isQuestionAboutApproach = currentUserMessage.toLowerCase().includes('approach') || 
+                                    currentUserMessage.toLowerCase().includes('solve');
+    
+    const isAskingForClarification = currentUserMessage.length < 60 && 
+                                    (currentUserMessage.toLowerCase().includes('?') || 
+                                     currentUserMessage.toLowerCase().includes('will') ||
+                                     currentUserMessage.toLowerCase().includes('can') ||
+                                     currentUserMessage.toLowerCase().includes('what') ||
+                                     currentUserMessage.toLowerCase().includes('how'));
+                                     
+    const isExplainingApproach = currentUserMessage.length > 60 && 
+                                !containsCode &&
+                                !isRatingRequest;
+                                
+    const isShortAcknowledgment = currentUserMessage.length < 10;
+    
+    // Provide mock responses based on message analysis
     if (isInitialQuestion) {
-      return MOCK_RESPONSES[interviewType].initial;
+      return "Let's begin our coding interview. Could you walk me through your approach to solving this problem? How would you tackle it?";
     } else if (isFinalFeedback) {
-      return MOCK_RESPONSES[interviewType].feedback;
-    } else if (containsCode) {
-      return "I've analyzed your code. Your solution correctly addresses the problem. The time complexity is O(n) and space complexity is O(n), which is optimal for this problem. You've handled the edge cases well. I particularly like how you used a dictionary/hash map to store previously seen values, which allows for a single-pass solution. As a follow-up question: Can you think of a way to optimize the space complexity further?";
-    } else {
-      if (lastUserMessage.length < 50) {
-        if (lastUserMessage.toLowerCase().includes('time complexity') || 
-            lastUserMessage.toLowerCase().includes('big o')) {
-          return "Great question about time complexity. For this problem, the optimal solution has O(n) time complexity using a hash map approach. A brute force solution using nested loops would be O(n²). Can you walk me through how you'd implement the O(n) solution?";
-        } else if (lastUserMessage.toLowerCase().includes('edge case') || 
-                  lastUserMessage.toLowerCase().includes('special case')) {
-          return "Regarding edge cases, you should consider: empty arrays (though the problem states at least 2 elements), arrays with negative numbers, and the possibility of the same element being used twice (which is not allowed). How would your code handle these scenarios?";
-        } else {
-          return "That's a good point. Could you elaborate more on your approach? I'd like to understand how you're planning to find the pair of numbers that sum to the target value.";
-        }
+      return "You did well in the interview. Your problem-solving approach was methodical, and you arrived at an optimal solution with O(n) time complexity. Your communication was clear once you settled on an approach. To improve, I'd suggest being more confident in your initial problem breakdown and discussing edge cases more thoroughly. Overall, I'd rate your performance at 85/100.";
+    } else if (isRatingRequest) {
+      if (currentUserMessage.toLowerCase().includes('google')) {
+        return "For a Google interview, I'd rate your performance around 8/10. You demonstrated strong problem-solving skills and arrived at an optimal solution using Cantor's Diagonalization technique. Your time and space complexity analysis was accurate. Areas for improvement would be more clarity in your initial approach and more thorough discussion of edge cases, which are important aspects in Google interviews.";
       } else {
-        return "You've provided a thorough explanation of your approach. I like that you're considering both a brute force solution and a more optimized hash map solution. The hash map approach is indeed more efficient, giving us O(n) time complexity instead of O(n²). Let's move forward with implementation. How would you code this solution?";
+        return "Here's my assessment of your skills:\n\n1. Problem Understanding: 8/10 - You grasped the core problem quickly.\n2. Algorithm Design: 9/10 - Your final approach was elegant and optimal.\n3. Code Implementation: 7/10 - Some initial syntax issues, but your final implementation was clean.\n4. Communication: 8/10 - You explained your thought process clearly.\n5. Complexity Analysis: 9/10 - Your time and space complexity analysis was spot-on.\n6. Edge Case Handling: 7/10 - More detailed discussion would strengthen this area.\n7. Debugging: 8/10 - You identified and corrected issues efficiently.\n8. Overall: 8/10 - Strong performance, particularly in finding an optimal solution.";
       }
+    } else if (containsCode) {
+      if (currentUserMessage.includes("no code")) {
+        return "I see you're thinking through the problem step by step, which is a good approach. Could you elaborate on how you would implement this solution? What specific data structures would you use, and how would you ensure your solution handles all possible cases?";
+      }
+      return "I've analyzed your code. You're using Cantor's Diagonalization method which is an elegant solution. By flipping each bit along the diagonal, you ensure your result differs from every string in the input array. The time complexity is O(n) and space complexity is O(n), which is optimal. One small issue: your loop should use range(len(nums)) instead of (0, len(nums)) to iterate through all indices. Would you like to explain why this approach guarantees a valid answer?";
+    } else if (isAskingForClarification) {
+      const clarificationResponses = [
+        "Yes, that's correct. The problem states that we need to find a binary string (containing only 0s and 1s) of length n that isn't present in the given array.",
+        "Good question. The strings will all be of length n, and the array will contain n unique strings. This means there are 2^n possible binary strings of length n, but only n of them are in the array, so there must be at least one string not present.",
+        "That's an important clarification. The strings will only contain '0' and '1' characters since they're binary strings. No other characters will be present.",
+        "The length of each string will be equal to n, which is also the length of the input array. So if nums has 3 strings, each string will be 3 characters long."
+      ];
+      
+      // Return a consistent response based on the question
+      const hashCode = currentUserMessage.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0);
+      
+      return clarificationResponses[Math.abs(hashCode) % clarificationResponses.length];
+    } else if (isExplainingApproach) {
+      return "That's a good approach. Using a hash set to track strings is efficient for lookups. The key insight is that with n strings of length n, there are 2^n possible binary strings, but only n of them are in the array. This guarantees at least one string is missing. How would you implement this to find a missing string efficiently?";
+    } else if (isShortAcknowledgment) {
+      return "Could you elaborate more on your approach? I'd like to understand how you're thinking about this problem in detail.";
+    } else {
+      // Default responses based on interview progress
+      const progressResponses = [
+        "That's a good start. Can you explain how you would handle edge cases in your solution?",
+        "Interesting approach. How would you analyze the time and space complexity of this solution?",
+        "You're on the right track. Let's discuss optimization possibilities. Can you think of a way to improve the efficiency further?",
+        "I like your thinking. Now, how would you implement this algorithm in code?",
+        "Great progress. Let's step back and consider: is there an even more elegant solution to this problem?"
+      ];
+      
+      const progressIndex = Math.floor(this.interviewProgress / 20);
+      return progressResponses[Math.min(progressIndex, progressResponses.length - 1)];
     }
   }
 
@@ -263,7 +319,7 @@ class DeepseekService {
     
     let promptMessage = finalEvaluation 
       ? 'The interview is now complete. Please provide a detailed evaluation of my performance with a numerical score from 0-100 and specific feedback on what I did well and what I could improve.' 
-      : 'Please provide direct feedback on my last response and continue the interview with a follow-up question. Make sure to address any misconceptions or inaccuracies in my previous answer.';
+      : 'Please respond directly to my last message. If I asked a question, answer it. If I provided an approach or solution, give feedback. Don\'t change the subject unless my response is complete.';
     
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
