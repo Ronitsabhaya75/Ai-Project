@@ -1,13 +1,26 @@
 
 // Define types for the Web Speech API since TypeScript doesn't include them by default
-interface Window {
-  SpeechRecognition: typeof SpeechRecognition;
-  webkitSpeechRecognition: typeof SpeechRecognition;
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
 }
 
 interface SpeechRecognitionEvent {
   resultIndex: number;
   results: SpeechRecognitionResultList;
+}
+
+// Need to declare the SpeechRecognition class since TypeScript doesn't include it
+declare class SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: any) => void;
 }
 
 // Define the speech recognition and synthesis functionality
