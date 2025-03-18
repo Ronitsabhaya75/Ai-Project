@@ -1,5 +1,4 @@
-
-import { toast } from "sonner";
+import { toast } from "@/components/ui/use-toast";
 
 const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
 const BASE_URL = import.meta.env.VITE_DEEPSEEK_BASE_URL;
