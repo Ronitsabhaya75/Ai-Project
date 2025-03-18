@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Play, Delete, Copy, Save } from 'lucide-react';
@@ -24,6 +24,7 @@ const CodeEditor = ({
 }: CodeEditorProps) => {
   const [code, setCode] = useState(initialCode);
   const [selectedLanguage, setSelectedLanguage] = useState(language);
+  const codeRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setCode(initialCode);
@@ -39,7 +40,12 @@ const CodeEditor = ({
 
   const handleRun = () => {
     if (onRun) {
-      onRun(code);
+      // Only run non-empty code
+      if (code.trim()) {
+        onRun(code);
+      } else {
+        toast.warning('Please write some code before running');
+      }
     } else {
       toast.info('Code execution is simulated in this demo');
     }
@@ -48,6 +54,9 @@ const CodeEditor = ({
   const handleClear = () => {
     if (window.confirm('Are you sure you want to clear the code?')) {
       setCode('');
+      if (codeRef.current) {
+        codeRef.current.focus();
+      }
     }
   };
 
@@ -140,6 +149,7 @@ const CodeEditor = ({
         style={{ height }}
       >
         <textarea
+          ref={codeRef}
           value={code}
           onChange={(e) => setCode(e.target.value)}
           readOnly={readOnly}

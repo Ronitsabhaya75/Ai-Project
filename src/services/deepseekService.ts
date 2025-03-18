@@ -36,6 +36,14 @@ const SYSTEM_PROMPTS = {
    - Communication and explanation (25%)
 5. Speak in a professional, clear manner as if in a real interview
 6. Don't reveal that you're an AI - act as a human interviewer
+7. Don't repeat the same message - always progress the conversation forward
+8. When code is submitted, analyze it in detail and provide specific feedback
+
+When the candidate submits code, thoroughly evaluate it considering:
+- Correctness (does it work for all test cases?)
+- Time and space complexity (is it optimal?)
+- Code style and readability
+- Edge case handling
 
 Respond to candidate messages as if you're speaking. Keep your responses concise and focused.`,
 
@@ -101,15 +109,31 @@ const MOCK_RESPONSES = {
 
 class DeepseekService {
   private useApiIfAvailable = true;
+  private lastUserMessage = '';
+  private lastAiResponse = '';
   
   async generateChatResponse(
     messages: ChatMessage[],
     temperature: number = 0.7,
     max_tokens: number = 800
   ): Promise<string> {
-    // If API usage is disabled, return mock responses
+    const currentUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+    
+    if (currentUserMessage === this.lastUserMessage && this.lastAiResponse) {
+      const systemDirective: ChatMessage = {
+        role: 'system',
+        content: 'Please provide a different, progressive response than your last answer. Move the conversation forward.'
+      };
+      messages = [...messages, systemDirective];
+    }
+    
     if (!this.useApiIfAvailable) {
-      return this.getMockResponse(messages);
+      const mockResponse = this.getMockResponse(messages);
+      
+      this.lastUserMessage = currentUserMessage;
+      this.lastAiResponse = mockResponse;
+      
+      return mockResponse;
     }
     
     try {
@@ -131,7 +155,6 @@ class DeepseekService {
         const errorData = await response.text();
         console.error(`API request failed: ${response.status} - ${errorData}`);
         
-        // If we get a 402 Payment Required or other error, fall back to mock responses
         if (response.status === 402) {
           this.useApiIfAvailable = false;
           toast.error("DeepSeek API credits depleted. Using simulated AI responses.");
@@ -142,14 +165,24 @@ class DeepseekService {
       }
 
       const data: ChatCompletionResponse = await response.json();
-      return data.choices[0]?.message.content || '';
+      const aiResponse = data.choices[0]?.message.content || '';
+      
+      this.lastUserMessage = currentUserMessage;
+      this.lastAiResponse = aiResponse;
+      
+      return aiResponse;
     } catch (error) {
       console.error('Error generating chat response:', error);
       
-      // Fall back to mock responses if API call fails
       this.useApiIfAvailable = false;
       toast.error("Failed to reach DeepSeek API. Using simulated AI responses.");
-      return this.getMockResponse(messages);
+      
+      const mockResponse = this.getMockResponse(messages);
+      
+      this.lastUserMessage = currentUserMessage;
+      this.lastAiResponse = mockResponse;
+      
+      return mockResponse;
     }
   }
 
@@ -176,17 +209,29 @@ class DeepseekService {
       (m.content.includes('interview is now complete') || m.content.includes('provide detailed feedback'))
     );
     
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+    const containsCode = lastUserMessage.includes('```') || 
+                         lastUserMessage.includes('I\'ve written this code');
+    
     if (isInitialQuestion) {
       return MOCK_RESPONSES[interviewType].initial;
     } else if (isFinalFeedback) {
       return MOCK_RESPONSES[interviewType].feedback;
+    } else if (containsCode) {
+      return "I've analyzed your code. Your solution correctly addresses the problem. The time complexity is O(n) and space complexity is O(n), which is optimal for this problem. You've handled the edge cases well. I particularly like how you used a dictionary/hash map to store previously seen values, which allows for a single-pass solution. As a follow-up question: Can you think of a way to optimize the space complexity further?";
     } else {
-      const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
-      
       if (lastUserMessage.length < 50) {
-        return "Could you elaborate more on that point? I'd like to understand your approach in more detail.";
+        if (lastUserMessage.toLowerCase().includes('time complexity') || 
+            lastUserMessage.toLowerCase().includes('big o')) {
+          return "Great question about time complexity. For this problem, the optimal solution has O(n) time complexity using a hash map approach. A brute force solution using nested loops would be O(n²). Can you walk me through how you'd implement the O(n) solution?";
+        } else if (lastUserMessage.toLowerCase().includes('edge case') || 
+                  lastUserMessage.toLowerCase().includes('special case')) {
+          return "Regarding edge cases, you should consider: empty arrays (though the problem states at least 2 elements), arrays with negative numbers, and the possibility of the same element being used twice (which is not allowed). How would your code handle these scenarios?";
+        } else {
+          return "That's a good point. Could you elaborate more on your approach? I'd like to understand how you're planning to find the pair of numbers that sum to the target value.";
+        }
       } else {
-        return "That's an interesting perspective. Let me ask you a follow-up question: how would you handle edge cases in this scenario?";
+        return "You've provided a thorough explanation of your approach. I like that you're considering both a brute force solution and a more optimized hash map solution. The hash map approach is indeed more efficient, giving us O(n) time complexity instead of O(n²). Let's move forward with implementation. How would you code this solution?";
       }
     }
   }
